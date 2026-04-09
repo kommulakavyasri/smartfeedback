@@ -1,20 +1,30 @@
-import { useState } from "react";
-import { createUserWithEmailAndPassword, signOut } from "firebase/auth";
-import { useNavigate, Link } from "react-router-dom";
-import { auth } from "../firebase/FireBaseConfig";
-import { doc, setDoc } from "firebase/firestore";
-import { db } from "../firebase/FireBaseConfig";
+// SignUp page for Smart Feedback Analyzer
+import { useState, useEffect } from "react";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { Form, Button, Card, Container, Row, Col, Alert, Spinner } from "react-bootstrap";
+import { useAuth } from "../context/AuthContext";
+import { db } from "../firebase/FireBaseConfig";
 
 const SignUp = () => {
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const roleFromUrl = queryParams.get("role");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [role, setRole] = useState("student");
+  // Default to URL role if present, otherwise default to empty or student
+  const [role, setRole] = useState(roleFromUrl || "student");
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const { signUp } = useAuth();
+  
+  const displayRole = roleFromUrl ? roleFromUrl.charAt(0).toUpperCase() + roleFromUrl.slice(1) : "";
+
+  // Hardcoded BVCEC college ID - will be set after BVCEC is added
+  const BVCEC_COLLEGE_ID = "bvec-college-id"; // This will be updated after BVCEC is added
 
   const handleSignup = async (e) => {
     e.preventDefault();
@@ -25,51 +35,51 @@ const SignUp = () => {
       return;
     }
     
-    if (role === "select") {
-      setError("Please select a role");
-      return;
-    }
-    
     setLoading(true);
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      const result = await signUp(email, password, name, role, BVCEC_COLLEGE_ID);
       
-      // Store user data in Firestore
-      await setDoc(doc(db, "users", user.uid), {
-        uid: user.uid,
-        name,
-        email,
-        role,
-        createdAt: new Date()
-      });
-      
-      await signOut(auth);
-      alert("Account created! Please log in.");
-      navigate("/signin");
+      if (result.success) {
+        // Firebase automatically logs in the newly created user!
+        // We can navigate them straight to their dashboard without an alert blocking them.
+        switch (role) {
+          case "student":
+            navigate("/student");
+            break;
+          case "faculty":
+            navigate("/faculty");
+            break;
+          case "admin":
+            navigate("/admin");
+            break;
+          default:
+            navigate("/home");
+        }
+      } else {
+        setError(result.error);
+      }
     } catch (error) {
-      setError(error.message);
+      setError("An unexpected error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="home-container">
-      <video autoPlay muted loop playsInline className="video-bg">
-        <source src="/background1.mp4" type="video/mp4" />
-        Your browser does not support the video tag.
-      </video>
-
-      <div className="overlay" />
-      <Container className="d-flex justify-content-center align-items-center min-vh-100">
+    <div className="auth-container">
+      <div className="auth-background" />
+      <Container fluid className="min-vh-100 d-flex justify-content-center align-items-center p-3">
         <Row className="justify-content-center w-100">
-          <Col xs={12} md={8} lg={6}>
-            <Card className="shadow-lg border-0 home-card mx-auto">
-              <Card.Body className="p-5">
+          <Col xs={12} sm={11} md={9} lg={7} xl={6}>
+            <Card className="shadow-lg border-0 auth-card">
+              <Card.Body className="p-5 p-md-6">
                 <div className="text-center mb-4">
-                  <h2 className="welcome-title text-primary">Sign Up</h2>
-                  <p className="text-muted">Create your account to get started</p>
+                  <h2 className="auth-title text-primary mb-2">
+                    {displayRole ? `${displayRole} Sign Up` : "Sign Up"}
+                  </h2>
+                  <p className="text-muted">
+                    {displayRole ? `Create your ${displayRole} account to get started` : "Create your account to get started"}
+                  </p>
                 </div>
                 
                 {error && <Alert variant="danger">{error}</Alert>}
@@ -119,18 +129,22 @@ const SignUp = () => {
                     />
                   </Form.Group>
 
-                  <Form.Group className="mb-4">
-                    <Form.Label>Role</Form.Label>
-                    <Form.Select
-                      value={role}
-                      onChange={(e) => setRole(e.target.value)}
-                      required
-                    >
-                      <option value="select">Select your role</option>
-                      <option value="student">Student</option>
-                      <option value="faculty">Faculty</option>
-                    </Form.Select>
-                  </Form.Group>
+                  {/* Hide Role Selector if it was passed cleanly from Landing Page */}
+                  {!roleFromUrl && (
+                    <Form.Group className="mb-3">
+                      <Form.Label>Role</Form.Label>
+                      <Form.Select
+                        value={role}
+                        onChange={(e) => setRole(e.target.value)}
+                        required
+                      >
+                        <option value="select">Select your role</option>
+                        <option value="student">Student</option>
+                        <option value="faculty">Faculty</option>
+                        <option value="admin">Administrator</option>
+                      </Form.Select>
+                    </Form.Group>
+                  )}
 
                   <Button 
                     variant="primary" 
@@ -152,7 +166,7 @@ const SignUp = () => {
                 <div className="text-center">
                   <p className="mb-0">
                     Already have an account?{" "}
-                    <Link to="/signin" className="text-primary text-decoration-none">
+                    <Link to={roleFromUrl ? `/signin?role=${roleFromUrl}` : "/signin"} className="text-primary text-decoration-none">
                       Sign In
                     </Link>
                   </p>

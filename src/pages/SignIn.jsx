@@ -1,50 +1,73 @@
-import { useState } from "react";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { useNavigate, Link } from "react-router-dom";
-import { auth } from "../firebase/FireBaseConfig";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
-import { db } from "../firebase/FireBaseConfig";
+import { useState, useEffect } from "react";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { Form, Button, Card, Container, Row, Col, Alert, Spinner } from "react-bootstrap";
+import { useAuth } from "../context/AuthContext";
 
 const SignIn = () => {
-  const [loginIdentifier, setLoginIdentifier] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState("student");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const location = useLocation();
+  const { signIn } = useAuth();
+  
+  // Get role from URL query param
+  const queryParams = new URLSearchParams(location.search);
+  const roleFromUrl = queryParams.get("role");
+  
+  // Capitalize role for display (e.g., student -> Student)
+  const displayRole = roleFromUrl ? roleFromUrl.charAt(0).toUpperCase() + roleFromUrl.slice(1) : "";
 
   const handleSignin = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
+    
     try {
-      await signInWithEmailAndPassword(auth, loginIdentifier, password);
-      localStorage.setItem("role", role);
-      if (role === "student") navigate("/student");
-      else navigate("/faculty");
+      // Use AuthContext signIn function
+      const result = await signIn(email, password);
+      
+      if (result.success) {
+        // Navigate based on role
+        switch (result.user.role) {
+          case "student":
+            navigate("/student");
+            break;
+          case "faculty":
+            navigate("/faculty");
+            break;
+          case "admin":
+            navigate("/admin");
+            break;
+          default:
+            setError("Invalid user role. Please contact administrator.");
+        }
+      } else {
+        setError(result.error);
+      }
     } catch (error) {
-      setError(error.message);
+      setError("An unexpected error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="home-container">
-      <video autoPlay muted loop playsInline className="video-bg">
-        <source src="/background1.mp4" type="video/mp4" />
-        Your browser does not support the video tag.
-      </video>
-      <div className="overlay" />
-      <Container className="d-flex justify-content-center align-items-center min-vh-100">
+    <div className="auth-container">
+      <div className="auth-background" />
+      <Container fluid className="min-vh-100 d-flex justify-content-center align-items-center p-3">
         <Row className="justify-content-center w-100">
-          <Col xs={12} md={8} lg={6}>
-            <Card className="shadow-lg border-0 home-card mx-auto">
-              <Card.Body className="p-5">
+          <Col xs={12} sm={10} md={8} lg={6} xl={5}>
+            <Card className="shadow-lg border-0 auth-card">
+              <Card.Body className="p-4 p-md-5">
                 <div className="text-center mb-4">
-                  <h2 className="welcome-title text-primary">Student Sign In</h2>
-                  <p className="text-muted">Access your student dashboard</p>
+                  <h2 className="auth-title text-primary mb-2">
+                    {displayRole ? `${displayRole} Sign In` : "Smart Feedback"}
+                  </h2>
+                  <p className="text-muted">
+                    {displayRole ? `Welcome to the ${displayRole} Portal` : "Welcome to Smart Feedback Analyzer"}
+                  </p>
                 </div>
                 
                 {error && <Alert variant="danger">{error}</Alert>}
@@ -55,8 +78,8 @@ const SignIn = () => {
                     <Form.Control
                       type="email"
                       placeholder="Enter your email"
-                      value={loginIdentifier}
-                      onChange={(e) => setLoginIdentifier(e.target.value)}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
                       required
                     />
                   </Form.Group>
@@ -70,17 +93,6 @@ const SignIn = () => {
                       onChange={(e) => setPassword(e.target.value)}
                       required
                     />
-                  </Form.Group>
-
-                  <Form.Group className="mb-4">
-                    <Form.Label>Role</Form.Label>
-                    <Form.Select
-                      value={role}
-                      onChange={(e) => setRole(e.target.value)}
-                    >
-                      <option value="student">Student</option>
-                      <option value="faculty">Faculty</option>
-                    </Form.Select>
                   </Form.Group>
 
                   <Button 
@@ -103,10 +115,18 @@ const SignIn = () => {
                 <div className="text-center">
                   <p className="mb-0">
                     Don't have an account?{" "}
-                    <Link to="/" className="text-primary text-decoration-none">
+                    <Link to={roleFromUrl ? `/signup?role=${roleFromUrl}` : "/signup"} className="text-primary text-decoration-none">
                       Sign Up
                     </Link>
                   </p>
+                  {!roleFromUrl && (
+                    <p className="mb-0 mt-2">
+                      Are you an admin?{" "}
+                      <Link to="/signin?role=admin" className="text-primary text-decoration-none">
+                        Admin Login
+                      </Link>
+                    </p>
+                  )}
                 </div>
               </Card.Body>
             </Card>

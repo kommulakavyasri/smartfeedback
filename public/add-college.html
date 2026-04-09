@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Add BVCEC College</title>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .loading { color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Add BVCEC College to Firestore</h2>
+        <p>Click the button below to add BVCEC college to the database.</p>
+        
+        <button onclick="addCollege()">Add BVCEC College</button>
+        
+        <div id="status"></div>
+        
+        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
+            <h4>College Details:</h4>
+            <ul>
+                <li><strong>Name:</strong> BVCEC</li>
+                <li><strong>Full Name:</strong> B V Rajulu Institute of Technology</li>
+                <li><strong>Location:</strong> Narsapur, West Godavari District, Andhra Pradesh</li>
+                <li><strong>Departments:</strong> CSE, ECE, EEE, MECH, CIVIL</li>
+                <li><strong>Facilities:</strong> Library, Labs, Sports, Hostel, Transport</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Firebase configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyBiXOEINlnwGqCcRoqvxB5oKlGOTusmJ_U",
+            authDomain: "aurg-bc061.firebaseapp.com",
+            projectId: "aurg-bc061",
+            storageBucket: "aurg-bc061.firebasestorage.app",
+            messagingSenderId: "846644971189",
+            appId: "1:846644971189:web:bdf5e0747351bde7d320fc",
+            measurementId: "G-R2ZXMTNDRL"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+
+        async function addCollege() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = '<div class="loading">Adding BVCEC college...</div>';
+            
+            try {
+                const collegeData = {
+                    name: "BVCEC",
+                    fullName: "B V Rajulu Institute of Technology",
+                    location: "Narsapur, West Godavari District, Andhra Pradesh",
+                    description: "BVCEC is a premier engineering institution offering quality education in various engineering disciplines with state-of-the-art facilities and experienced faculty.",
+                    facultyCount: 0,
+                    studentCount: 0,
+                    establishedYear: 2008,
+                    affiliatedTo: "JNTU Kakinada",
+                    website: "https://bvcec.ac.in",
+                    contactEmail: "info@bvcec.ac.in",
+                    contactPhone: "+91-8812-234567",
+                    address: "Narsapur, West Godavari District, Andhra Pradesh - 534275",
+                    departments: [
+                        "Computer Science and Engineering",
+                        "Electronics and Communication Engineering",
+                        "Electrical and Electronics Engineering",
+                        "Mechanical Engineering",
+                        "Civil Engineering"
+                    ],
+                    facilities: [
+                        "Digital Library",
+                        "Advanced Laboratories",
+                        "Sports Complex",
+                        "Hostel Facilities",
+                        "Transportation",
+                        "Placement Cell"
+                    ],
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                    isActive: true
+                };
+
+                // Add to Firestore
+                const docRef = await db.collection("colleges").add(collegeData);
+                
+                statusDiv.innerHTML = `
+                    <div class="success">
+                        <h3>Success!</h3>
+                        <p>BVCEC college added successfully!</p>
+                        <p><strong>College ID:</strong> ${docRef.id}</p>
+                        <p>You can now close this page and use the Smart Feedback Analyzer.</p>
+                    </div>
+                `;
+                
+                console.log("BVCEC college added with ID:", docRef.id);
+                
+            } catch (error) {
+                console.error("Error adding college:", error);
+                statusDiv.innerHTML = `
+                    <div class="error">
+                        <h3>Error!</h3>
+                        <p>Failed to add BVCEC college: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
