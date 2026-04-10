@@ -1,9 +1,11 @@
 import { addDoc, collection, getDocs, query, where } from "firebase/firestore";
-import { auth, db } from "../firebase/FireBaseConfig";
+import { db } from "../firebase/FireBaseConfig";
 import { useState, useEffect } from "react";
 import { Form, Button, Alert, Spinner, Modal, Card } from "react-bootstrap";
+import { useAuth } from "../context/AuthContext";
 
 export default function FeedbackForm({ onFeedbackSubmitted }) {
+  const { user, userProfile } = useAuth();
   const [facultyList, setFacultyList] = useState([]);
   const [faculty, setFaculty] = useState("");
   const [category, setCategory] = useState("teaching");
@@ -16,22 +18,29 @@ export default function FeedbackForm({ onFeedbackSubmitted }) {
 
   useEffect(() => {
     const fetchFaculty = async () => {
-      const q = query(
-        collection(db, "users"),
-        where("role", "==", "faculty"),
-        where("isActive", "==", true)
-      );
-      const snap = await getDocs(q);
-      const data = snap.docs.map(doc => ({
-        id: doc.id,
-        name: doc.data().name
-      }));
+      if (!userProfile?.collegeId) return;
 
-      setFacultyList(data);
-      if (data.length > 0) setFaculty(data[0].id);
+      try {
+        const q = query(
+          collection(db, "users"),
+          where("role", "==", "faculty"),
+          where("collegeId", "==", userProfile.collegeId),
+          where("isActive", "==", true)
+        );
+        const snap = await getDocs(q);
+        const data = snap.docs.map(doc => ({
+          id: doc.id,
+          name: doc.data().name
+        }));
+
+        setFacultyList(data);
+        if (data.length > 0) setFaculty(data[0].id);
+      } catch (err) {
+        console.error("Error fetching faculty for form:", err);
+      }
     };
     fetchFaculty();
-  }, []);
+  }, [userProfile?.collegeId]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -50,10 +59,11 @@ export default function FeedbackForm({ onFeedbackSubmitted }) {
       await addDoc(collection(db, "feedback"), {
         faculty: selected,
         facultyId: faculty,
+        collegeId: userProfile?.collegeId || "",
         category,
         points,
         text,
-        userId: auth.currentUser.uid,
+        studentId: user.uid,
         createdAt: new Date()
       });
 

@@ -20,13 +20,12 @@ export default function FacultyDashboard() {
     try {
       if (!auth.currentUser) return;
       
-      // Fetch user profile
-      const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
-      let facultyName = "";
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        setUser(userData);
-        facultyName = userData.name || "";
+      // Fetch user profile if not already set (fallback)
+      if (!user) {
+        const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
+        if (userDoc.exists()) {
+          setUser(userDoc.data());
+        }
       }
 
       // Query feedback specifically where facultyId matches the current user
@@ -36,23 +35,39 @@ export default function FacultyDashboard() {
       const myFeedbackData = feedbackSnapshot.docs.map(doc => ({ 
         id: doc.id, 
         ...doc.data(),
-        timestamp: doc.data().timestamp || new Date(doc.data().createdAt?.toDate?.() || doc.data().createdAt).toLocaleString()
+        timestamp: doc.data().timestamp || new Date(doc.data().createdAt?.toDate?.() || doc.data().createdAt || Date.now()).toLocaleString()
       }));
       
       setMyFeedback(myFeedbackData);
-
-      // Fetch ONLY students, not all users
-      const studentQuery = query(collection(db, "users"), where("role", "==", "student"));
-      const studentSnapshot = await getDocs(studentQuery);
-      const studentsData = studentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setStudents(studentsData);
-
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.error("Error fetching faculty data:", error);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [user]);
+
+  // Lazy load students when tab is switched
+  useEffect(() => {
+    const fetchStudents = async () => {
+      // Only fetch if tab is active, students list is empty, and we have the collegeId
+      if (activeTab === "students" && students.length === 0 && user?.collegeId) {
+        try {
+          const studentQuery = query(
+            collection(db, "users"), 
+            where("role", "==", "student"),
+            where("collegeId", "==", user.collegeId)
+          );
+          const studentSnapshot = await getDocs(studentQuery);
+          const studentsData = studentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+          setStudents(studentsData);
+        } catch (error) {
+          console.error("Error fetching students:", error);
+        }
+      }
+    };
+    
+    fetchStudents();
+  }, [activeTab, students.length, user?.collegeId]);
 
   useEffect(() => {
     fetchData();

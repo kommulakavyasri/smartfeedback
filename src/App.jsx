@@ -24,8 +24,28 @@ import LandingPage from "./pages/LandingPage";
 import PageNotFound from "./pages/PageNotFound";
 import Profile from "./pages/Profile";
 
+/**
+ * Helper component to redirect authenticated users to their specific dashboard
+ */
+const RoleRedirect = ({ children }) => {
+  const { user, userProfile, loading } = useAuth();
+  
+  if (loading) return null;
+  
+  if (user && userProfile) {
+    switch (userProfile.role) {
+      case "student": return <Navigate to="/student" replace />;
+      case "faculty": return <Navigate to="/faculty" replace />;
+      case "admin": return <Navigate to="/admin" replace />;
+      default: return <Navigate to="/home" replace />;
+    }
+  }
+  
+  return children;
+};
+
 function App() {
-  const { user, userProfile } = useAuth();
+  const { user } = useAuth();
 
   return (
     <BrowserRouter>
@@ -33,11 +53,10 @@ function App() {
         {user && <TopNavbar />}
         <div className="page-content">
           <Routes>
-            {/* Public routes */}
-            <Route path='*' element={<PageNotFound/>}/>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/signup" element={<SignUp />} />
-            <Route path="/signin" element={!user ? <SignIn /> : <Navigate to="/home" />} />
+            {/* Public routes with redirection for logged in users */}
+            <Route path="/" element={<RoleRedirect><LandingPage /></RoleRedirect>} />
+            <Route path="/signup" element={<RoleRedirect><SignUp /></RoleRedirect>} />
+            <Route path="/signin" element={<RoleRedirect><SignIn /></RoleRedirect>} />
             
             {/* Protected routes */}
             <Route 
@@ -69,7 +88,7 @@ function App() {
               } 
             />
             
-            {/* College details route */}
+            {/* Miscellaneous routes */}
             <Route 
               path="/college/:id" 
               element={
@@ -85,11 +104,10 @@ function App() {
             <Route path="/quick-add-college" element={<QuickAddCollege />} />
             <Route path="/add-faculty" element={<AddFaculty />} />
             <Route path="/create-faculty-logins" element={<CreateFacultyLogins />} />
-            
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             
-            {/* Catch all route - redirect to home */}
-            <Route path="*" element={<Navigate to="/" />} />
+            {/* Catch all route */}
+            <Route path="*" element={<PageNotFound />} />
           </Routes>
         </div>
       </div>

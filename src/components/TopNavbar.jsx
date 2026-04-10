@@ -6,18 +6,17 @@ import { signOut } from "firebase/auth";
 import { auth } from "../firebase/FireBaseConfig";
 
 export default function TopNavbar() {
-  const { user } = useAuth();
+  const { user, userProfile, signOut: contextSignOut } = useAuth();
   const navigate = useNavigate();
   const [expanded, setExpanded] = useState(false);
 
-  const role = localStorage.getItem("role");
-  const dashboardPath = role === "faculty" ? "/faculty" : "/student";
+  const role = userProfile?.role || localStorage.getItem("role");
+  const dashboardPath = role === "faculty" ? "/faculty" : role === "admin" ? "/admin" : "/student";
 
   const closeMenu = () => setExpanded(false);
 
   const handleLogout = async () => {
-    await signOut(auth);
-    localStorage.removeItem("role");
+    await contextSignOut();
     closeMenu();
     navigate("/");
   };

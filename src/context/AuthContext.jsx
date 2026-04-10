@@ -20,22 +20,32 @@ export const AuthProvider = ({ children }) => {
   // Monitor authentication state
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (currentUser) => {
+      // Always set user immediately to keep auth state snappy
       setUser(currentUser);
       
       if (currentUser) {
+        // Create a promise that rejects after 5 seconds to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Profile fetch timeout")), 5000)
+        );
+
         try {
-          // Fetch user profile from Firestore
-          const userDoc = await getDoc(doc(db, "users", currentUser.uid));
+          // Race the profile fetch against the timeout
+          const userDocPromise = getDoc(doc(db, "users", currentUser.uid));
+          const userDoc = await Promise.race([userDocPromise, timeoutPromise]);
+
           if (userDoc.exists()) {
             const userData = userDoc.data();
             setUserProfile(userData);
             localStorage.setItem("role", userData.role);
           } else {
+            console.warn("User profile not found in Firestore");
             setUserProfile(null);
             localStorage.removeItem("role");
           }
         } catch (error) {
-          console.error("Error fetching user profile:", error);
+          console.error("Error fetching user profile (handled):", error);
+          // If profile fetch fails, we still stop loading so the app isn't stuck
           setUserProfile(null);
           localStorage.removeItem("role");
         }
@@ -67,11 +77,28 @@ export const AuthProvider = ({ children }) => {
         lastLogin: new Date()
       };
       
-      await setDoc(doc(db, "users", user.uid), userData);
-      setUserProfile(userData);
-      localStorage.setItem("role", role);
-      
-      return { success: true, user: userData };
+      // Timeout for Firestore write
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Database write timeout")), 5000)
+      );
+
+      try {
+        await Promise.race([
+          setDoc(doc(db, "users", user.uid), userData),
+          timeoutPromise
+        ]);
+        
+        setUserProfile(userData);
+        localStorage.setItem("role", role);
+        return { success: true, user: userData };
+      } catch (dbError) {
+        console.error("Firestore setDoc failed/timed out:", dbError);
+        // We still return success: true because the Auth account was created!
+        // The user is logged in, but their profile might be missing.
+        // The RoleRedirect or Dashboard will handle the missing profile.
+        setUserProfile(userData); // Set local state anyway as a fallback
+        return { success: true, user: userData };
+      }
     } catch (error) {
       console.error("Sign up error:", error);
       return { success: false, error: error.message };
@@ -84,22 +111,36 @@ export const AuthProvider = ({ children }) => {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
-      // Fetch user profile from Firestore
-      const userDoc = await getDoc(doc(db, "users", user.uid));
-      if (userDoc.exists()) {
-        const userData = userDoc.data();
-        
-        // Update last login asynchronously without awaiting to speed up signin
-        updateDoc(doc(db, "users", user.uid), {
-          lastLogin: new Date()
-        }).catch(err => console.error("Error updating last login:", err));
-        
-        setUserProfile(userData);
-        localStorage.setItem("role", userData.role);
-        
-        return { success: true, user: userData };
-      } else {
-        return { success: false, error: "User profile not found" };
+      // Timeout for Firestore read
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Database read timeout")), 5000)
+      );
+
+      try {
+        // Fetch user profile from Firestore
+        const userDoc = await Promise.race([
+          getDoc(doc(db, "users", user.uid)),
+          timeoutPromise
+        ]);
+
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          
+          // Update last login asynchronously
+          updateDoc(doc(db, "users", user.uid), {
+            lastLogin: new Date()
+          }).catch(err => console.error("Error updating last login:", err));
+          
+          setUserProfile(userData);
+          localStorage.setItem("role", userData.role);
+          
+          return { success: true, user: userData };
+        } else {
+          return { success: false, error: "User profile not found" };
+        }
+      } catch (dbError) {
+        console.error("Firestore getDoc failed/timed out during signin:", dbError);
+        return { success: false, error: "Database connection timed out. Please check your connection or try again." };
       }
     } catch (error) {
       console.error("Sign in error:", error);

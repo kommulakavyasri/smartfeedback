@@ -8,48 +8,67 @@ import { Button, Container, Row, Col, Card, ListGroup, Badge, Nav, ProgressBar, 
 import AnalyticsChart from "../components/AnalyticsChart";
 import BranchComparison from "../components/BranchComparison";
 
+import { seedBVCECUsers } from "../utils/seedBVCECUsers";
+
 export default function AdminDashboard() {
   const [allFeedback, setAllFeedback] = useState([]);
   const [colleges, setColleges] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [activeMainTab, setActiveMainTab] = useState("analytics");
   const navigate = useNavigate();
 
+  const handleSeedData = async () => {
+    if (!window.confirm("This will add default BVCEC faculty and students. Proceed?")) return;
+    setSeeding(true);
+    const result = await seedBVCECUsers();
+    alert(result.message);
+    if (result.success) fetchData();
+    setSeeding(false);
+  };
+
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [feedbackSnapshot, collegesSnapshot, usersSnapshot] = await Promise.all([
-        getDocs(collection(db, "feedback")),
-        getDocs(collection(db, "colleges")),
-        getDocs(collection(db, "users"))
-      ]);
+      // Fetch only feedback and colleges summary initially
+      const feedbackSnapshot = await getDocs(collection(db, "feedback"));
 
       const feedbackData = feedbackSnapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data(),
-        timestamp: doc.data().timestamp || new Date(doc.data().createdAt?.toDate?.() || doc.data().createdAt).toLocaleString()
+        timestamp: doc.data().timestamp || new Date(doc.data().createdAt?.toDate?.() || doc.data().createdAt || Date.now()).toLocaleString()
       }));
       setAllFeedback(feedbackData);
-
-      const collegesData = collegesSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setColleges(collegesData);
-
-      const usersData = usersSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setUsers(usersData);
     } catch (error) {
-      console.error("Error fetching data:", error);
+      console.error("Error fetching admin feedback:", error);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  // Lazy load colleges
+  useEffect(() => {
+    if (activeMainTab === "colleges" && colleges.length === 0) {
+      const fetchColleges = async () => {
+        const snap = await getDocs(collection(db, "colleges"));
+        setColleges(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      };
+      fetchColleges();
+    }
+  }, [activeMainTab, colleges.length]);
+
+  // Lazy load users
+  useEffect(() => {
+    if (activeMainTab === "faculty-comparison" && users.length === 0) {
+      const fetchUsers = async () => {
+        const snap = await getDocs(collection(db, "users"));
+        setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      };
+      fetchUsers();
+    }
+  }, [activeMainTab, users.length]);
 
   useEffect(() => {
     fetchData();
@@ -136,9 +155,19 @@ export default function AdminDashboard() {
                     <h2 className="mb-0">Admin Dashboard</h2>
                     <p className="mb-0">System-wide feedback analytics and faculty comparison</p>
                   </div>
-                  <Badge bg="light" text="dark" className="fs-6">
-                    {analytics.totalFeedback} total feedback
-                  </Badge>
+                  <div className="d-flex align-items-center gap-2">
+                    <Button 
+                      variant="outline-light" 
+                      size="sm" 
+                      onClick={handleSeedData}
+                      disabled={seeding}
+                    >
+                      {seeding ? "Seeding..." : "Seed Dev Data"}
+                    </Button>
+                    <Badge bg="light" text="dark" className="fs-6">
+                      {analytics.totalFeedback} total feedback
+                    </Badge>
+                  </div>
                 </div>
               </Card.Header>
 
