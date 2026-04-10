@@ -25,7 +25,9 @@ const SignIn = () => {
     setError("");
     
     try {
-      // Use AuthContext signIn function
+      // PROACTIVE CACHE: Save intent so onAuthStateChanged can bypass loading instantly
+      if (roleFromUrl) localStorage.setItem("role", roleFromUrl);
+      
       const result = await signIn(email, password);
       
       if (result.success) {

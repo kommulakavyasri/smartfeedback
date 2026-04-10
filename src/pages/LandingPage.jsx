@@ -68,14 +68,28 @@ export default function LandingPage() {
                 </Card.Body>
               </Card>
             </Col>
+
+            {/* Admin Portal Card */}
+            <Col xs={12} md={5} lg={4}>
+              <Card 
+                className="portal-card admin-portal shadow-lg"
+                onClick={() => handleSelectRole("admin")}
+              >
+                <Card.Body className="p-5 text-center d-flex flex-column justify-content-center">
+                  <div className="portal-icon-wrapper">
+                    🛡️
+                  </div>
+                  <h3 className="fw-bold mb-3">Admin Portal</h3>
+                  <p className="text-muted mb-0">
+                    Full system administration, faculty performance comparison, and system-wide feedback analytics.
+                  </p>
+                </Card.Body>
+              </Card>
+            </Col>
           </Row>
 
           <div className="text-center mt-5 pt-5">
-            <a href="/admin/login" className="admin-link mx-3" onClick={(e) => { e.preventDefault(); handleSelectRole("admin"); }}>
-              Admin Login
-            </a>
-            <span className="text-muted opacity-50">|</span>
-            <a href="/signup" className="admin-link mx-3">
+            <a href="/signup" className="admin-link">
               Don't have an account? Sign Up
             </a>
           </div>

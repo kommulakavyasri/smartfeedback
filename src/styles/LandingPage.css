@@ -56,6 +56,11 @@
   color: white;
 }
 
+.admin-portal .portal-icon-wrapper {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+}
+
 .admin-link {
   color: rgba(0, 0, 0, 0.5);
   text-decoration: none;
