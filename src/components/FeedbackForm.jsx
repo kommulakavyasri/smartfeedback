@@ -21,13 +21,20 @@ export default function FeedbackForm({ onFeedbackSubmitted }) {
       if (!userProfile?.collegeId) return;
 
       try {
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Faculty list timeout")), 5000)
+        );
+
         const q = query(
           collection(db, "users"),
           where("role", "==", "faculty"),
           where("collegeId", "==", userProfile.collegeId),
           where("isActive", "==", true)
         );
-        const snap = await getDocs(q);
+        const snap = await Promise.race([
+          getDocs(q),
+          timeoutPromise
+        ]);
         const data = snap.docs.map(doc => ({
           id: doc.id,
           name: doc.data().name
@@ -105,7 +112,7 @@ export default function FeedbackForm({ onFeedbackSubmitted }) {
             <Form.Label>Category</Form.Label>
             <Form.Select value={category} onChange={(e) => setCategory(e.target.value)}>
               <option value="teaching">Teaching</option>
-              <option value="content">Content</option>
+              <option value="content">Less Content</option>
               <option value="communication">Communication</option>
             </Form.Select>
           </Form.Group>

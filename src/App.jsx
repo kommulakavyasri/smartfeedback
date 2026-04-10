@@ -32,8 +32,10 @@ const RoleRedirect = ({ children }) => {
   
   if (loading) return null;
   
-  if (user && userProfile) {
-    switch (userProfile.role) {
+  const role = userProfile?.role || localStorage.getItem("role");
+  
+  if (user && role) {
+    switch (role) {
       case "student": return <Navigate to="/student" replace />;
       case "faculty": return <Navigate to="/faculty" replace />;
       case "admin": return <Navigate to="/admin" replace />;

@@ -10,10 +10,11 @@ export default function LandingPage() {
 
   // If already logged in, redirect to the appropriate dashboard
   useEffect(() => {
-    if (user && userProfile) {
-      if (userProfile.role === "student") navigate("/student");
-      else if (userProfile.role === "faculty") navigate("/faculty");
-      else if (userProfile.role === "admin") navigate("/admin");
+    const role = userProfile?.role || localStorage.getItem("role");
+    if (user && role) {
+      if (role === "student") navigate("/student");
+      else if (role === "faculty") navigate("/faculty");
+      else if (role === "admin") navigate("/admin");
       else navigate("/home");
     }
   }, [user, userProfile, navigate]);

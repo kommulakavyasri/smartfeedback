@@ -6,31 +6,38 @@ import { auth } from "../firebase/FireBaseConfig";
 import { useNavigate } from "react-router-dom";
 import { Button, Container, Row, Col, Card, ListGroup, Badge, Nav, ProgressBar, Alert } from "react-bootstrap";
 
+import { useAuth } from "../context/AuthContext";
+
 export default function FacultyDashboard() {
+  const { userProfile, loading: authLoading } = useAuth();
   const [allFeedback, setAllFeedback] = useState([]);
   const [myFeedback, setMyFeedback] = useState([]);
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const navigate = useNavigate();
 
   const fetchData = useCallback(async () => {
     try {
-      if (!auth.currentUser) return;
-      
-      // Fetch user profile if not already set (fallback)
-      if (!user) {
-        const userDoc = await getDoc(doc(db, "users", auth.currentUser.uid));
-        if (userDoc.exists()) {
-          setUser(userDoc.data());
-        }
+      setLoading(true);
+      if (!auth.currentUser) {
+        setLoading(false);
+        return;
       }
+      
+      // Timeout promise for Firestore read
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Dashboard data timeout")), 5000)
+      );
 
       // Query feedback specifically where facultyId matches the current user
       const feedbackQuery = query(collection(db, "feedback"), where("facultyId", "==", auth.currentUser.uid));
-      const feedbackSnapshot = await getDocs(feedbackQuery);
+      
+      const feedbackSnapshot = await Promise.race([
+        getDocs(feedbackQuery),
+        timeoutPromise
+      ]);
       
       const myFeedbackData = feedbackSnapshot.docs.map(doc => ({ 
         id: doc.id, 
@@ -41,23 +48,31 @@ export default function FacultyDashboard() {
       setMyFeedback(myFeedbackData);
     } catch (error) {
       console.error("Error fetching faculty data:", error);
+      // Fallback: stay on current state or show alert
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, []);
 
   // Lazy load students when tab is switched
   useEffect(() => {
     const fetchStudents = async () => {
       // Only fetch if tab is active, students list is empty, and we have the collegeId
-      if (activeTab === "students" && students.length === 0 && user?.collegeId) {
+      if (activeTab === "students" && students.length === 0 && userProfile?.collegeId) {
         try {
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("Student list timeout")), 5000)
+          );
+
           const studentQuery = query(
             collection(db, "users"), 
             where("role", "==", "student"),
-            where("collegeId", "==", user.collegeId)
+            where("collegeId", "==", userProfile.collegeId)
           );
-          const studentSnapshot = await getDocs(studentQuery);
+          const studentSnapshot = await Promise.race([
+            getDocs(studentQuery),
+            timeoutPromise
+          ]);
           const studentsData = studentSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
           setStudents(studentsData);
         } catch (error) {
@@ -67,7 +82,7 @@ export default function FacultyDashboard() {
     };
     
     fetchStudents();
-  }, [activeTab, students.length, user?.collegeId]);
+  }, [activeTab, students.length, userProfile?.collegeId]);
 
   useEffect(() => {
     fetchData();

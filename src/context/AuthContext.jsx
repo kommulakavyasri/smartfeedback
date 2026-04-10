@@ -16,48 +16,74 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [dbStatus, setDbStatus] = useState("checking"); // 'checking', 'connected', 'lagging', 'error'
 
   // Monitor authentication state
   useEffect(() => {
+    let timeoutId;
     const unsub = onAuthStateChanged(auth, async (currentUser) => {
       // Always set user immediately to keep auth state snappy
       setUser(currentUser);
       
       if (currentUser) {
-        // Create a promise that rejects after 5 seconds to prevent hanging
+        setDbStatus("loading");
+        // Fallback role from localStorage if fetch fails
+        const fallbackRole = localStorage.getItem("role");
+        
+        // OPTIMIZATION: If we have a fallback role, let them into the app immediately!
+        if (fallbackRole) {
+          setUserProfile({ uid: currentUser.uid, email: currentUser.email, role: fallbackRole });
+          setLoading(false); // Bypasses the spinner wall
+        }
+
+        // Timer to detect 'lagging' status
+        timeoutId = setTimeout(() => {
+          setDbStatus("lagging");
+        }, 3000);
+
+        // Create a promise that rejects after 10 seconds
         const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("Profile fetch timeout")), 5000)
+          setTimeout(() => reject(new Error("Profile fetch timeout")), 10000)
         );
 
         try {
-          // Race the profile fetch against the timeout
+          // Race the profile fetch
           const userDocPromise = getDoc(doc(db, "users", currentUser.uid));
           const userDoc = await Promise.race([userDocPromise, timeoutPromise]);
+
+          clearTimeout(timeoutId);
 
           if (userDoc.exists()) {
             const userData = userDoc.data();
             setUserProfile(userData);
             localStorage.setItem("role", userData.role);
+            setDbStatus("connected");
           } else {
-            console.warn("User profile not found in Firestore");
-            setUserProfile(null);
-            localStorage.removeItem("role");
+            setDbStatus("connected");
+            if (!fallbackRole) {
+               // If no fallback, we must stop loading now
+               setUserProfile({ uid: currentUser.uid, email: currentUser.email, role: "student" });
+            }
           }
         } catch (error) {
-          console.error("Error fetching user profile (handled):", error);
-          // If profile fetch fails, we still stop loading so the app isn't stuck
-          setUserProfile(null);
-          localStorage.removeItem("role");
+          clearTimeout(timeoutId);
+          console.error("Profile fetch ended/timed out (background):", error.message);
+          setDbStatus("error");
         }
       } else {
         setUserProfile(null);
+        setDbStatus("idle");
         localStorage.removeItem("role");
       }
       
+      // Ensure loading is ALWAYS false by this point if it wasn't already set
       setLoading(false);
     });
 
-    return () => unsub();
+    return () => {
+      unsub();
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, []);
 
   // Sign up new user
@@ -111,9 +137,9 @@ export const AuthProvider = ({ children }) => {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
       
-      // Timeout for Firestore read
+      // Timeout for Firestore read (increased to 10s for reliability)
       const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error("Database read timeout")), 5000)
+        setTimeout(() => reject(new Error("Database read timeout")), 10000)
       );
 
       try {
@@ -136,11 +162,17 @@ export const AuthProvider = ({ children }) => {
           
           return { success: true, user: userData };
         } else {
-          return { success: false, error: "User profile not found" };
+          // If auth succeeded but profile is missing, we might be in a weird state.
+          // We'll still allow them in, the dashboard will handle the missing profile.
+          const fallbackRole = localStorage.getItem("role") || "student"; 
+          return { success: true, user: { uid: user.uid, email: user.email, role: fallbackRole } };
         }
       } catch (dbError) {
-        console.error("Firestore getDoc failed/timed out during signin:", dbError);
-        return { success: false, error: "Database connection timed out. Please check your connection or try again." };
+        console.error("Firestore getDoc failed/timed out during signin (proceeding anyway):", dbError);
+        // CRITICAL: Even if DB times out, we return success because Firebase Auth succeeded!
+        // The onAuthStateChanged listener will handle the fallback role.
+        const fallbackRole = localStorage.getItem("role") || "student";
+        return { success: true, user: { uid: user.uid, email: user.email, role: fallbackRole } };
       }
     } catch (error) {
       console.error("Sign in error:", error);

@@ -32,8 +32,16 @@ export default function AdminDashboard() {
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
+      
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Admin feedback timeout")), 5000)
+      );
+
       // Fetch only feedback and colleges summary initially
-      const feedbackSnapshot = await getDocs(collection(db, "feedback"));
+      const feedbackSnapshot = await Promise.race([
+        getDocs(collection(db, "feedback")),
+        timeoutPromise
+      ]);
 
       const feedbackData = feedbackSnapshot.docs.map(doc => ({
         id: doc.id,
@@ -52,10 +60,16 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (activeMainTab === "colleges" && colleges.length === 0) {
       const fetchColleges = async () => {
-        const snap = await getDocs(collection(db, "colleges"));
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Colleges fetch timeout")), 5000)
+        );
+        const snap = await Promise.race([
+          getDocs(collection(db, "colleges")),
+          timeoutPromise
+        ]);
         setColleges(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       };
-      fetchColleges();
+      fetchColleges().catch(console.error);
     }
   }, [activeMainTab, colleges.length]);
 
@@ -63,10 +77,16 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (activeMainTab === "faculty-comparison" && users.length === 0) {
       const fetchUsers = async () => {
-        const snap = await getDocs(collection(db, "users"));
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("Users fetch timeout")), 5000)
+        );
+        const snap = await Promise.race([
+          getDocs(collection(db, "users")),
+          timeoutPromise
+        ]);
         setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       };
-      fetchUsers();
+      fetchUsers().catch(console.error);
     }
   }, [activeMainTab, users.length]);
 
@@ -103,7 +123,7 @@ export default function AdminDashboard() {
 
   // Calculate faculty averages
   const getFacultyStats = () => {
-    const facultyFeedback = {};
+  const facultyFeedback = {};
     allFeedback.forEach(f => {
       // f.facultyId is now present, fallback to f.faculty (name) if needed for old records
       const facultyIdentifier = f.facultyId || f.faculty || 'unknown';
