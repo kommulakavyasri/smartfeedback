@@ -8,7 +8,7 @@ export const seedBVCECUsers = async () => {
     // 1. Find BVCEC College ID
     const q = query(collection(db, "colleges"), where("name", "==", "BVCEC"));
     const querySnapshot = await getDocs(q);
-    
+
     if (querySnapshot.empty) {
       return { success: false, message: "BVCEC College not found." };
     }
